@@ -11,16 +11,6 @@ import { Component } from '@angular/core';
 @Component({
     selector: 'app-settings',
     standalone: true,
-    template: `
-        <div class="card">
-            <div class="font-semibold text-xl mb-4">Settings</div>
-            <p class="mb-4">Placeholder page - no data yet.</p>
-            <ul class="leading-8">
-                <li><span class="font-medium">TODO(Task 7):</span> shop profile (name, address, phone) shown on devis/facture documents</li>
-                <li><span class="font-medium">TODO(Task 7):</span> logo upload (multipart, stored in the <code>/data/uploads</code> volume)</li>
-                <li><span class="font-medium">TODO(Task 8):</span> ADMIN-only page</li>
-            </ul>
-        </div>
-    `
+    templateUrl: './settings.html'
 })
 export class Settings {}
