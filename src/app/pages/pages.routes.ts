@@ -1,7 +1,7 @@
-import { Routes } from '@angular/router';
+﻿import { Routes } from '@angular/router';
 import { Catalogue } from './catalogue/catalogue';
 import { Clients } from './clients/clients';
-import { Devis } from './devis/devis';
+import { DevisPage } from './devis/devis';
 import { Settings } from './settings/settings';
 
 /**
@@ -10,7 +10,7 @@ import { Settings } from './settings/settings';
  */
 export default [
     { path: 'clients', component: Clients },
-    { path: 'devis', component: Devis },
+    { path: 'devis', component: DevisPage },
     { path: 'catalogue', component: Catalogue },
     { path: 'settings', component: Settings },
     { path: '**', redirectTo: '/notfound' }

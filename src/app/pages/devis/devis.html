@@ -1,10 +1,144 @@
+<p-toast />
+<p-confirmDialog />
+
 <div class="card">
-    <div class="font-semibold text-xl mb-4">Devis / Factures</div>
-    <p class="mb-4">Placeholder page - no data yet.</p>
-    <ul class="leading-8">
-        <li><span class="font-medium">TODO(Task 5):</span> devis CRUD with lignes (quantite, fourniture, prixUnitaire, prixTotal, isIncluded)</li>
-        <li><span class="font-medium">TODO(Task 5):</span> document numbering <code>DEV-2026-001</code> / <code>FAC-2026-001</code></li>
-        <li><span class="font-medium">TODO(Task 6):</span> download PDF (server-side, OpenPDF)</li>
-        <li><span class="font-medium">TODO(Task 10):</span> convert a devis into a facture</li>
-    </ul>
+    <p-toolbar styleClass="mb-4">
+        <ng-template pTemplate="start">
+            <span class="font-semibold text-xl">Devis &amp; Factures</span>
+        </ng-template>
+        <ng-template pTemplate="end">
+            <p-button label="Nouveau devis" icon="pi pi-plus" (onClick)="openNew()" />
+        </ng-template>
+    </p-toolbar>
+
+    <p-table [value]="documents()" [loading]="loading()" dataKey="id"
+             [paginator]="true" [rows]="10" [rowHover]="true" [scrollable]="true">
+        <ng-template pTemplate="header">
+            <tr>
+                <th>N°</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Véhicule</th>
+                <th>Immatriculation</th>
+                <th>Total</th>
+                <th style="width: 12rem">Actions</th>
+            </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-doc>
+            <tr>
+                <td class="font-medium">{{ doc.number }}</td>
+                <td>
+                    <p-tag [value]="doc.documentType"
+                           [severity]="doc.documentType === 'FACTURE' ? 'success' : 'info'" />
+                </td>
+                <td>{{ doc.issueDate }}</td>
+                <td>{{ doc.clientName }}</td>
+                <td>{{ doc.vehicleLabel || '—' }}</td>
+                <td>{{ doc.registration || '—' }}</td>
+                <td>{{ money(doc.total) }}</td>
+                <td>
+                    <p-button icon="pi pi-file-pdf" severity="danger" [text]="true"
+                              (onClick)="downloadPdf(doc)" />
+                    @if (doc.documentType === 'DEVIS') {
+                        <p-button icon="pi pi-replay" severity="success" [text]="true"
+                                  (onClick)="convert(doc)" />
+                    }
+                    <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit(doc)" />
+                    <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="remove(doc)" />
+                </td>
+            </tr>
+        </ng-template>
+
+        <ng-template pTemplate="emptymessage">
+            <tr><td colspan="8">Aucun document.</td></tr>
+        </ng-template>
+    </p-table>
 </div>
+
+<!-- ── DEVIS DIALOG ── -->
+<p-dialog [header]="editingId() ? 'Modifier ' + editingNumber() : 'Nouveau devis'"
+          [visible]="dialog()" (visibleChange)="dialog.set($event)"
+          [modal]="true" [style]="{ width: '920px' }">
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
+        <div>
+            <label class="block mb-1">Type</label>
+            <p-select [options]="types" optionLabel="label" optionValue="value"
+                      [ngModel]="documentType()" (ngModelChange)="documentType.set($event)"
+                      [disabled]="editingId() !== null" appendTo="body" styleClass="w-full" />
+        </div>
+        <div>
+            <label class="block mb-1">Date</label>
+            <p-datepicker [ngModel]="issueDate()" (ngModelChange)="issueDate.set($event)"
+                          dateFormat="dd/mm/yy" [showIcon]="true" appendTo="body" styleClass="w-full" />
+        </div>
+        <div>
+            <label class="block mb-1">Client</label>
+            <p-select [options]="clients()" optionLabel="name" optionValue="id"
+                      [ngModel]="clientId()" (ngModelChange)="onClientChange($event)"
+                      placeholder="Client" [filter]="true" appendTo="body" styleClass="w-full" />
+        </div>
+        <div>
+            <label class="block mb-1">Véhicule</label>
+            <p-select [options]="vehicles()" optionLabel="label" optionValue="id"
+                      [ngModel]="vehicleId()" (ngModelChange)="onVehicleChange($event)"
+                      placeholder="Véhicule" [disabled]="!clientId()"
+                      appendTo="body" styleClass="w-full" />
+        </div>
+    </div>
+
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="border-b surface-border">
+                <th class="p-2 text-left" style="width: 6rem">Qté</th>
+                <th class="p-2 text-left">Description</th>
+                <th class="p-2 text-right" style="width: 10rem">Prix unitaire</th>
+                <th class="p-2 text-center" style="width: 5rem">Inclus</th>
+                <th class="p-2 text-right" style="width: 9rem">Total</th>
+                <th style="width: 3rem"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (line of lines(); track $index) {
+                <tr class="border-b surface-border">
+                    <td class="p-1">
+                        <p-inputNumber [ngModel]="line.quantity"
+                                       (ngModelChange)="updateLine($index, 'quantity', $event)"
+                                       [min]="1" [showButtons]="true" styleClass="w-full" />
+                    </td>
+                    <td class="p-1">
+                        <input pInputText class="w-full" [ngModel]="line.description"
+                               (ngModelChange)="updateLine($index, 'description', $event)" />
+                    </td>
+                    <td class="p-1">
+                        <p-inputNumber [ngModel]="line.unitPrice"
+                                       (ngModelChange)="updateLine($index, 'unitPrice', $event)"
+                                       [disabled]="line.included" [min]="0" [useGrouping]="false"
+                                       styleClass="w-full" />
+                    </td>
+                    <td class="p-1 text-center">
+                        <p-checkbox [ngModel]="line.included" [binary]="true"
+                                    (ngModelChange)="updateLine($index, 'included', $event)" />
+                    </td>
+                    <td class="p-1 text-right">{{ money(lineTotal(line)) }}</td>
+                    <td class="p-1">
+                        <p-button icon="pi pi-trash" severity="danger" [text]="true"
+                                  (onClick)="removeLine($index)" />
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="flex justify-between items-center mt-4">
+        <p-button label="Ajouter une ligne" icon="pi pi-plus" [text]="true" (onClick)="addLine()" />
+        <div class="text-lg font-semibold">Total : {{ money(total()) }}</div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button label="Annuler" severity="secondary" [text]="true" (onClick)="dialog.set(false)" />
+        <p-button label="Enregistrer" [loading]="saving()" (onClick)="save()" />
+    </ng-template>
+</p-dialog>
