@@ -41,3 +41,13 @@ export interface DevisRequest {
     registration: string | null;
     lines: DevisLineRequest[];
 }
+
+export interface DevisFilter {
+    documentType: DocumentType | null;
+    clientId: number | null;
+    vehicleId: number | null;
+    registration: string;
+    q: string;
+    from: string | null; // ISO yyyy-MM-dd format
+    to: string | null;   // ISO yyyy-MM-dd format
+}

@@ -5,3 +5,16 @@
 :host ::ng-deep .p-dialog-content {
     overflow-y: visible;
 }
+
+/* Devis line editor: narrow columns must shrink, never overflow into the next cell */
+:host ::ng-deep .lines-table .p-inputnumber,
+:host ::ng-deep .lines-table .p-inputnumber-input,
+:host ::ng-deep .lines-table .p-inputtext {
+    width: 100%;
+    min-width: 0;
+}
+
+:host ::ng-deep .lines-table .p-inputnumber-input {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+}

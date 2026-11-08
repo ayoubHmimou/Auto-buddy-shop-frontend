@@ -11,6 +11,65 @@
         </ng-template>
     </p-toolbar>
 
+    <!-- ── FILTRES ── -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-5">
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Type</label>
+            <p-selectButton [options]="typeFilters" optionLabel="label" optionValue="value"
+                            [ngModel]="fType()" (ngModelChange)="fType.set($event)" />
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Client</label>
+            <p-select [options]="clients()" optionLabel="name" optionValue="id"
+                      [ngModel]="fClientId()" (ngModelChange)="onFilterClientChange($event)"
+                      placeholder="Tous les clients" [filter]="true" [showClear]="true"
+                      appendTo="body" styleClass="w-full" />
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Véhicule</label>
+            <p-select [options]="filterVehicles()" optionLabel="label" optionValue="id"
+                      [ngModel]="fVehicleId()" (ngModelChange)="onFilterVehicleChange($event)"
+                      placeholder="Tous les véhicules" [filter]="true" [showClear]="true"
+                      appendTo="body" styleClass="w-full" />
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Immatriculation</label>
+            <input pInputText class="w-full" [ngModel]="fRegistration()"
+                   (ngModelChange)="fRegistration.set($event)"
+                   (keyup.enter)="applyFilters()" placeholder="12345-A-1" />
+        </div>
+
+        <div class="md:col-span-4">
+            <label class="block mb-1 text-sm">Recherche libre (n° / client / véhicule)</label>
+            <input pInputText class="w-full" [ngModel]="fQ()"
+                   (ngModelChange)="fQ.set($event)"
+                   (keyup.enter)="applyFilters()" placeholder="ex: DEV-2026 ou LumiFes" />
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Du</label>
+            <p-datepicker [ngModel]="fFrom()" (ngModelChange)="fFrom.set($event)"
+                          dateFormat="dd/mm/yy" [showIcon]="true"
+                          appendTo="body" styleClass="w-full" />
+        </div>
+
+        <div class="md:col-span-3">
+            <label class="block mb-1 text-sm">Au</label>
+            <p-datepicker [ngModel]="fTo()" (ngModelChange)="fTo.set($event)"
+                          dateFormat="dd/mm/yy" [showIcon]="true"
+                          appendTo="body" styleClass="w-full" />
+        </div>
+
+        <div class="md:col-span-2 flex items-end gap-2">
+            <p-button label="Réinitialiser" icon="pi pi-filter-slash" severity="secondary"
+                      [text]="true" (onClick)="resetFilters()" />
+        </div>
+    </div>
+
+    <!-- ── TABLE ── -->
     <p-table [value]="documents()" [loading]="loading()" dataKey="id"
              [paginator]="true" [rows]="10" [rowHover]="true" [scrollable]="true">
         <ng-template pTemplate="header">
@@ -46,7 +105,8 @@
                                   (onClick)="convert(doc)" />
                     }
                     <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit(doc)" />
-                    <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="remove(doc)" />
+                    <p-button icon="pi pi-trash" severity="danger" [text]="true"
+                              (onClick)="remove(doc)" />
                 </td>
             </tr>
         </ng-template>
@@ -69,17 +129,21 @@
                       [ngModel]="documentType()" (ngModelChange)="documentType.set($event)"
                       [disabled]="editingId() !== null" appendTo="body" styleClass="w-full" />
         </div>
+
         <div>
             <label class="block mb-1">Date</label>
             <p-datepicker [ngModel]="issueDate()" (ngModelChange)="issueDate.set($event)"
-                          dateFormat="dd/mm/yy" [showIcon]="true" appendTo="body" styleClass="w-full" />
+                          dateFormat="dd/mm/yy" [showIcon]="true"
+                          appendTo="body" styleClass="w-full" />
         </div>
+
         <div>
             <label class="block mb-1">Client</label>
             <p-select [options]="clients()" optionLabel="name" optionValue="id"
                       [ngModel]="clientId()" (ngModelChange)="onClientChange($event)"
                       placeholder="Client" [filter]="true" appendTo="body" styleClass="w-full" />
         </div>
+
         <div>
             <label class="block mb-1">Véhicule</label>
             <p-select [options]="vehicles()" optionLabel="label" optionValue="id"
@@ -89,15 +153,15 @@
         </div>
     </div>
 
-    <table class="w-full text-sm">
+    <table class="lines-table w-full text-sm">
         <thead>
             <tr class="border-b surface-border">
-                <th class="p-2 text-left" style="width: 6rem">Qté</th>
-                <th class="p-2 text-left">Description</th>
-                <th class="p-2 text-right" style="width: 10rem">Prix unitaire</th>
-                <th class="p-2 text-center" style="width: 5rem">Inclus</th>
-                <th class="p-2 text-right" style="width: 9rem">Total</th>
-                <th style="width: 3rem"></th>
+                <th class="p-2 text-left" style="width: 3.5rem">Qté</th>
+                <th class="p-2 text-left" style="width: 100%">Description</th>
+                <th class="p-2 text-right" style="width: 7rem">Prix unitaire</th>
+                <th class="p-2 text-center" style="width: 3.5rem">Inclus</th>
+                <th class="p-2 text-right" style="width: 7rem">Total</th>
+                <th style="width: 2.5rem"></th>
             </tr>
         </thead>
         <tbody>
@@ -106,7 +170,7 @@
                     <td class="p-1">
                         <p-inputNumber [ngModel]="line.quantity"
                                        (ngModelChange)="updateLine($index, 'quantity', $event)"
-                                       [min]="1" [showButtons]="true" styleClass="w-full" />
+                                       [min]="1" [max]="99" [showButtons]="false" inputStyleClass="text-center" styleClass="w-full" />
                     </td>
                     <td class="p-1">
                         <input pInputText class="w-full" [ngModel]="line.description"

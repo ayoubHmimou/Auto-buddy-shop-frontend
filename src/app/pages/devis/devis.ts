@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+﻿import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -10,6 +10,7 @@ import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -37,13 +38,13 @@ interface VehicleOption {
     imports: [
         CommonModule, FormsModule, TableModule, ToolbarModule, ButtonModule,
         DialogModule, ConfirmDialogModule, InputTextModule, InputNumberModule,
-        SelectModule, DatePickerModule, CheckboxModule, TagModule, ToastModule
+        SelectModule, SelectButtonModule, DatePickerModule, CheckboxModule, TagModule, ToastModule
     ],
     templateUrl: './devis.html',
     styleUrls: ['./devis.scss'],
     providers: [MessageService, ConfirmationService]
 })
-export class DevisPage implements OnInit {
+export class DevisPage implements OnInit, OnDestroy {
 
     private readonly api = inject(DevisApiService);
     private readonly clientsApi = inject(ClientApiService);
@@ -69,6 +70,26 @@ export class DevisPage implements OnInit {
     readonly clients = signal<Client[]>([]);
     readonly lines = signal<LineForm[]>([]);
 
+    readonly fType = signal<'ALL' | DocumentType>('ALL');
+    readonly fClientId = signal<number | null>(null);
+    readonly fVehicleId = signal<number | null>(null);
+    readonly fRegistration = signal<string>('');
+    readonly fQ = signal<string>('');
+    readonly fFrom = signal<Date | null>(null);
+    readonly fTo = signal<Date | null>(null);
+    readonly filtering = signal(false);
+
+    readonly typeFilters = [
+        { label: 'Tous', value: 'ALL' },
+        { label: 'Devis', value: 'DEVIS'},
+        { label: 'Facture', value: 'FACTURE'}
+    ];
+
+    readonly allVehicles = computed<VehicleOption[]>(() => 
+        this.clients().flatMap((c) => 
+            c.vehicles.map((v) => ({ id: v.id, label: `${v.make} ${v.model} (${v.registration})
+                `}))));
+
     readonly types = [
         { label: 'Devis', value: 'DEVIS' as DocumentType },
         { label: 'Facture', value: 'FACTURE' as DocumentType }
@@ -77,21 +98,94 @@ export class DevisPage implements OnInit {
     readonly selectedClient = computed(() =>
         this.clients().find((c) => c.id === this.clientId()) ?? null);
 
-    readonly vehicles = computed<VehicleOption[]>(() =>
-        (this.selectedClient()?.vehicles ?? [])
-            .map((v) => ({ id: v.id, label: `${v.make} ${v.model} (${v.registration})` })));
+    readonly vehicles = computed<VehicleOption[]>(() => {
+        const client = this.selectedClient();
+        if (!client) {
+            return this.allVehicles();
+        }
+        return client.vehicles.map((v) => ({ id: v.id, label: `${v.make} ${v.model} (${v.registration})` }));
+    });
+
+    // Filter dropdowns are linked: a client narrows the vehicle list, and a
+    // vehicle forces its owner client.
+    readonly filterVehicles = computed<VehicleOption[]>(() => {
+        const client = this.clients().find((c) => c.id === this.fClientId());
+        if (!client) {
+            return this.allVehicles();
+        }
+        return client.vehicles.map((v) => ({ id: v.id, label: `${v.make} ${v.model} (${v.registration})` }));
+    });
+
+    onFilterClientChange(clientId: number | null): void {
+        this.fClientId.set(clientId);
+
+        const vehicleId = this.fVehicleId();
+        if (vehicleId !== null && !this.filterVehicles().some((v) => v.id === vehicleId)) {
+            this.fVehicleId.set(null);
+        }
+    }
+
+    onFilterVehicleChange(vehicleId: number | null): void {
+        this.fVehicleId.set(vehicleId);
+
+        if (vehicleId === null) {
+            return;
+        }
+
+        const owner = this.clients().find((c) => c.vehicles.some((v) => v.id === vehicleId));
+        if (owner) {
+            this.fClientId.set(owner.id);
+        }
+    }
+        
 
     readonly total = computed(() =>
         this.lines().reduce((sum, line) => sum + this.lineTotal(line), 0));
 
+    private searchTimer?: ReturnType<typeof setTimeout>;
+
+    constructor() {
+        // Live search: any filter change re-queries the backend (debounced so
+        // typing does not fire one request per keystroke).
+        effect(() => {
+            this.fType();
+            this.fClientId();
+            this.fVehicleId();
+            this.fRegistration();
+            this.fQ();
+            this.fFrom();
+            this.fTo();
+
+            if (this.searchTimer) {
+                clearTimeout(this.searchTimer);
+            }
+            this.searchTimer = setTimeout(() => this.load(), 300);
+        });
+    }
+
     ngOnInit(): void {
-        this.load();
         this.clientsApi.list().subscribe({ next: (clients) => this.clients.set(clients) });
+    }
+
+    ngOnDestroy(): void {
+        if (this.searchTimer) {
+            clearTimeout(this.searchTimer);
+        }
     }
 
     load(): void {
         this.loading.set(true);
-        this.api.list().subscribe({
+        const documentType = this.fType();
+
+        this.api.search({
+            documentType: documentType === 'ALL' ? null : documentType,
+            clientId: this.fClientId(),
+            vehicleId: this.fVehicleId(),
+            registration: this.fRegistration(),
+            q: this.fQ(),
+            from: this.fFrom() ? this.toIso(this.fFrom()!) : null,
+            to: this.fTo() ? this.toIso(this.fTo()!) : null
+        }).subscribe({
             next: (docs) => {
                 this.documents.set(docs);
                 this.loading.set(false);
@@ -103,7 +197,22 @@ export class DevisPage implements OnInit {
         });
     }
 
-    // ── dialog ──
+    applyFilters(): void {
+        this.load();
+    }
+
+    resetFilters(): void {
+        this.fType.set('ALL');
+        this.fClientId.set(null);
+        this.fVehicleId.set(null);
+        this.fRegistration.set('');
+        this.fQ.set('');
+        this.fFrom.set(null);
+        this.fTo.set(null);
+        // The effect above re-queries automatically.
+    }
+
+    // â”€â”€ dialog â”€â”€
 
     openNew(): void {
         this.editingId.set(null);
@@ -153,7 +262,7 @@ export class DevisPage implements OnInit {
         this.registration.set(vehicle?.registration ?? null);
     }
 
-    // ── lines ──
+    // â”€â”€ lines â”€â”€
 
     addLine(): void {
         this.lines.update((lines) => [...lines, this.emptyLine()]);
@@ -175,7 +284,7 @@ export class DevisPage implements OnInit {
         return line.quantity * line.unitPrice;
     }
 
-    // ── save / delete / convert ──
+    // â”€â”€ save / delete / convert â”€â”€
 
     save(): void {
         if (!this.clientId()) {
@@ -276,7 +385,7 @@ export class DevisPage implements OnInit {
         });
     }
 
-    // ── helpers ──
+    // â”€â”€ helpers â”€â”€
 
     money(value: number | null | undefined): string {
         if (value === null || value === undefined) {

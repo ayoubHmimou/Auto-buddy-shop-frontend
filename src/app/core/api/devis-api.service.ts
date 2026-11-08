@@ -1,8 +1,8 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@/environments/environment';
-import { Devis, DevisRequest } from './devis.model';
+import { Devis, DevisRequest, DevisFilter } from './devis.model';
 
 
 @Injectable({ providedIn: 'root'}) 
@@ -41,5 +41,32 @@ export class DevisApiService {
         return this.http.get(`${this.baseUrl}/${id}/pdf`, { responseType: 'blob'});
     }
 
+    search(filter: DevisFilter): Observable<Devis[]> {
+        let params = new HttpParams();
+
+        if (filter.documentType) {
+            params = params.set('documentType', filter.documentType);
+        }
+        if (filter.clientId) {
+            params = params.set('clientId', filter.clientId);
+        }
+        if (filter.vehicleId) {
+            params = params.set('vehicleId', filter.vehicleId);
+        }
+        if (filter.registration) {
+            params = params.set('registration', filter.registration);
+        }
+        if (filter.q) {
+            params = params.set('q', filter.q);
+        }
+        if (filter.from) {
+            params = params.set('from', filter.from);
+        }
+        if (filter.to) {
+            params = params.set('to', filter.to);
+        }
+
+        return this.http.get<Devis[]>(this.baseUrl, { params });
+    }
 
 }
